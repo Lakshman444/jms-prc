@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:vm="http://www.mulesoft.org/schema/mule/vm" xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce"
+	xmlns:email="http://www.mulesoft.org/schema/mule/email"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:jms="http://www.mulesoft.org/schema/mule/jms" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/jms http://www.mulesoft.org/schema/mule/jms/current/mule-jms.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/email/current/mule-email.xsd
+http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd
+http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/current/mule-vm.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="74ec72a9-6d72-4ae8-a297-e8697188a912" >
+		<http:listener-connection host="0.0.0.0" port="8082" />
+	</http:listener-config>
+	<jms:config name="JMS_Config" doc:name="JMS Config" doc:id="b3b42220-4558-4b4d-8161-4a422f6fef44" >
+		<jms:active-mq-connection username="admin" password="admin323" >
+			<jms:factory-configuration brokerUrl="tcp://localhost:61616" maxRedelivery="6"/>
+		</jms:active-mq-connection>
+	</jms:config>
+	<http:request-config name="HTTP_Request_configuration" doc:name="HTTP Request configuration" doc:id="50212663-265c-4924-97b3-020e91f0f2f6" />
+	<http:request-config name="HTTP_Request_configuration1" doc:name="HTTP Request configuration" doc:id="ebabcce4-1120-434a-9c58-8fd82684448d" />
+	<http:request-config name="HTTP_Request_configuration2" doc:name="HTTP Request configuration" doc:id="dd66e8e6-f4fe-4e14-8832-a23e8082e064" >
+		<http:request-connection host="localhost" port="8081" />
+	</http:request-config>
+	<email:smtp-config name="Email_SMTP" doc:name="Email SMTP" doc:id="1a484c98-ad43-495a-b9fe-b0fabe9e6df2" >
+		<email:smtp-connection host="smtp.gmail.com" port="587" user="asamohanlakshman@gmail.com" password="9966653004" connectionTimeout="50" >
+			<email:properties >
+				<email:property key="mail.smtp.starttls.enable" value="true" />
+			</email:properties>
+		</email:smtp-connection>
+	</email:smtp-config>
+	<http:request-config name="HTTP_Request_configuration3" doc:name="HTTP Request configuration" doc:id="b7cf7b60-0ae2-459e-88d8-55fa9a2aabde" >
+	</http:request-config>
+	<vm:config name="VM_Config" doc:name="VM Config" doc:id="8ca795ec-26b5-414d-b241-6ce942639f38" >
+		<vm:queues >
+			<vm:queue queueName="vm1" queueType="PERSISTENT" />
+			<vm:queue queueName="vm2" queueType="PERSISTENT" />
+		</vm:queues>
+	</vm:config>
+	<flow name="processFlow" doc:id="1c1e0f7d-d592-4f5f-af7d-12061636eead" >
+		<http:listener doc:name="Listener" doc:id="42aca3d4-2577-4852-91a7-071b2a847ead" config-ref="HTTP_Listener_config" path="/process" allowedMethods="POST">
+		</http:listener>
+		<jms:publish doc:name="Publish" doc:id="3b873d83-3c44-41c1-a7df-ba9b4cc0312a" config-ref="JMS_Config" destination="New12" persistentDelivery="true" timeToLive="6" timeToLiveUnit="DAYS" >
+		</jms:publish>
+		<ee:transform doc:name="Transform Message" doc:id="feacb016-f723-479f-b858-030d2fc29aaa">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message:"your request has been recieved for value ", 
+	transactionId: correlationId
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<email:send doc:id="2bfd8477-d193-4825-a77c-403de81cccca" config-ref="Email_SMTP" fromAddress="asamohanlakshman@gmail.com" subject="POC" doc:name="Send">
+			<email:to-addresses>
+				<email:to-address value="alakshman@eniquesolutions.com" />
+			</email:to-addresses>
+			<email:body contentType="text/plain">
+				<email:content><![CDATA[#[payload.message]]]></email:content>
+			</email:body>
+		</email:send>
+	</flow>
+	<flow name="processFlow1" doc:id="5f128df4-d470-4c5b-973c-da8bf9700353" >
+		<jms:listener doc:name="On New Message" doc:id="2d9ec8b3-210d-46f9-b0e2-bcece0520371" config-ref="JMS_Config" destination="New12">
+			<redelivery-policy maxRedeliveryCount="10" />
+			<jms:response persistentDelivery="true" timeToLive="6" timeToLiveUnit="DAYS" />
+		</jms:listener>
+		<http:request method="POST" doc:name="Request" doc:id="28f7aac8-7157-4f5e-8815-351fe6ab5af8" url="http://localhost:8084/system" config-ref="HTTP_Request_configuration3" responseTimeout="1800000"/>
+	</flow>
+	<flow name="processFlow2" doc:id="8142cb07-c669-4d01-802f-05d18e395430" >
+		<http:listener doc:name="Listener" doc:id="d8eb6706-d643-41a0-8227-33631d15f67c" config-ref="HTTP_Listener_config" path="/reprocess"/>
+		<jms:consume doc:name="Consume" doc:id="481db823-c529-48bb-9312-7c6ce873faa0" config-ref="JMS_Config" destination="ActiveMQ.DLQ" ackMode="IMMEDIATE"/>
+		<set-variable value="#[attributes.ackId]" doc:name="Set Variable" doc:id="9759d4ed-c8c6-4591-8cb8-db51f66089d0" variableName="ackid1"/>
+		<logger level="INFO" doc:name="Logger" doc:id="ae6ba383-f8e0-4be5-982d-6398586e5fd2" message="#[vars.ackid1]"/>
+		<http:request method="POST" doc:name="Request" doc:id="cfbf86ae-3e74-4358-85ee-fb88b03f0eb7" url="http://localhost:8081/system" responseTimeout="1800000"/>
+		<jms:ack doc:name="Ack" doc:id="5ad145ca-7434-40d6-b105-2597a86648e9" ackId="#[vars.ackid1]"/>
+	</flow>
+	<flow name="processFlow3" doc:id="3f900a05-e411-4d0b-bf32-75ba5617f33e" >
+		<http:listener doc:name="Listener" doc:id="8a3752cc-91ed-47cc-bc40-9b4d880f5897" config-ref="HTTP_Listener_config" path="/vm"/>
+		<jms:consume doc:name="Consume" doc:id="2ff22f26-e744-497f-b2e9-a68667949be3" config-ref="JMS_Config" destination="ActiveMQ.DLQ"/>
+		<ee:transform doc:name="Transform Message" doc:id="17db2160-a099-467f-b01a-df630d674ea2" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+</mule>
